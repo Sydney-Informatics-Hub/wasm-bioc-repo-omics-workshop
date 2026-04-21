@@ -27,7 +27,7 @@ WebAssembly binaries deployable via GitHub Pages for use with
 ### 3. Push these files
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/wasm-bioc-repo
+git clone  https://github.com/Sydney-Informatics-Hub/wasm-bioc-repo-omics-workshop
 cd wasm-bioc-repo
 # copy these files in, then:
 git add .
@@ -56,16 +56,11 @@ Once the GitHub Pages site is live, install packages in webR with:
 
 ```r
 webr::install("edgeR", repos = c(
-  "https://YOUR-USERNAME.github.io/wasm-bioc-repo/",
+  "https://github.com/Sydney-Informatics-Hub/wasm-bioc-repo-omics-workshop",
   "https://repo.r-wasm.org/"
 ))
 library(edgeR)
 ```
-
-Replace `YOUR-USERNAME` with your actual GitHub username.
-
-The URL pattern is always:
-`https://USERNAME.github.io/REPO-NAME/`
 
 ---
 
