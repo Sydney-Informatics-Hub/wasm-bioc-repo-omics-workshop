@@ -32,19 +32,7 @@ jobs:
 
           # Use bioc:: prefix so pkgdepends knows where to look
           pkgs <- c(
-            "bioc::BiocGenerics",
-            "bioc::Biobase",
-            "bioc::S4Vectors",
-            "bioc::IRanges",
-            "bioc::GenomeInfoDb",
-            "bioc::GenomicRanges",
-            "bioc::MatrixGenerics",
-            "bioc::DelayedArray",
-            "bioc::SummarizedExperiment",
-            "bioc::BiocParallel",
-            "bioc::limma",
-            "bioc::edgeR",
-            "bioc::DESeq2"
+            "bioc::edgeR"
           )
 
           for (pkg in pkgs) {
