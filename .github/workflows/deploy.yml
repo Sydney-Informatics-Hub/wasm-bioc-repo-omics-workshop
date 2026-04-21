@@ -26,25 +26,40 @@ jobs:
           pak::pak("r-wasm/rwasm")
           library(rwasm)
 
-          # Do NOT set options(repos) — pkgdepends handles bioc:: natively
-          # when repos is unset. Setting it breaks the bioc:: resolver.
-          message("Default repos: ", paste(getOption("repos"), collapse=", "))
+          bioc_base <- "https://bioconductor.org/packages/3.22/bioc"
 
-          # Use bioc:: prefix so pkgdepends knows where to look
-          pkgs <- c(
-            "bioc::edgeR"
+          message("=== Fetching Bioconductor 3.22 package index ===")
+          bioc_pkgs <- available.packages(
+            repos     = bioc_base,
+            type      = "source",
+            fields    = "Version"
           )
+          message("Found ", nrow(bioc_pkgs), " packages in Bioconductor 3.22")
 
-          for (pkg in pkgs) {
-            message("\n=== Building: ", pkg, " ===")
+          pkgs_wanted <- c("edgeR")
+
+          for (pkg in pkgs_wanted) {
+            if (!pkg %in% rownames(bioc_pkgs)) {
+              message("NOT FOUND: ", pkg)
+              next
+            }
+            ver <- bioc_pkgs[pkg, "Version"]
+            url <- paste0(bioc_base, "/src/contrib/", pkg, "_", ver, ".tar.gz")
+            message("\n=== Building: ", pkg, " ", ver, " ===")
+            message("URL: ", url)
             tryCatch(
-              rwasm::add_pkg(pkg, repo_dir="/output", dependencies=FALSE),
+              rwasm::add_pkg(
+                paste0("url::", url),
+                repo_dir     = "/output",
+                dependencies = FALSE
+              ),
               error = function(e) message("FAILED: ", pkg, " - ", conditionMessage(e))
             )
           }
 
           message("\n=== Done. Files in /output: ===")
-          cat(paste(list.files("/output", recursive=TRUE), collapse="\n"), "\n")
+          built <- list.files("/output", recursive = TRUE, pattern = "\\.tgz$")
+          if (length(built) == 0) message("(none)") else cat(paste(built, collapse="\n"), "\n")
           REOF
           echo "Script written OK"
 
@@ -79,7 +94,6 @@ jobs:
           <!DOCTYPE html><html><head><title>Omics Workshop wasm repo</title></head>
           <body>
           <h2>Omics Workshop — WebAssembly R Package Repository</h2>
-          <p>Install with:</p>
           <pre>webr::install("edgeR", repos = c(
             "https://sydney-informatics-hub.github.io/wasm-bioc-repo-omics-workshop/",
             "https://repo.r-wasm.org/"
