@@ -1,3 +1,13 @@
+# Custom workflow that builds Bioconductor packages for WebAssembly.
+# Uses the webR Docker container directly so we can set BiocManager
+# repositories before calling rwasm::add_pkg().
+#
+# Once deployed, install in webR with:
+#   webr::install("edgeR", repos = c(
+#     "https://sydney-informatics-hub.github.io/wasm-bioc-repo-omics-workshop/",
+#     "https://repo.r-wasm.org/"
+#   ))
+
 on:
   push:
     branches: [main, master]
@@ -6,9 +16,79 @@ on:
 name: Build and deploy wasm R package repository
 
 jobs:
-  deploy-cran-repo:
-    uses: r-wasm/actions/.github/workflows/deploy-cran-repo.yml@v2
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Pages
+        uses: actions/configure-pages@v4
+
+      - name: Build wasm R packages in Docker
+        run: |
+          mkdir -p _site
+
+          docker run --rm \
+            -v "$(pwd)/_site:/output" \
+            ghcr.io/r-wasm/webr:main \
+            Rscript - <<'RSCRIPT'
+
+          install.packages("pak", repos = "https://r-lib.github.io/p/pak/stable/")
+          pak::pak("r-wasm/rwasm")
+          install.packages("BiocManager", repos = "https://cloud.r-project.org")
+
+          library(rwasm)
+
+          options(repos = c(
+            BiocManager::repositories(),
+            CRAN = "https://cloud.r-project.org"
+          ))
+
+          # Build in dependency order — each one individually so a
+          # failure on one package doesn't abort the whole run
+          pkgs <- c(
+            "BiocGenerics",
+            "Biobase",
+            "S4Vectors",
+            "IRanges",
+            "GenomeInfoDb",
+            "GenomicRanges",
+            "MatrixGenerics",
+            "DelayedArray",
+            "SummarizedExperiment",
+            "BiocParallel",
+            "limma",
+            "edgeR",
+            "DESeq2"
+          )
+
+          for (pkg in pkgs) {
+            message("\n========== Building: ", pkg, " ==========\n")
+            tryCatch(
+              rwasm::add_pkg(pkg, repo_dir = "/output", dependencies = FALSE),
+              error = function(e) message("ERROR: ", pkg, " — ", conditionMessage(e))
+            )
+          }
+
+          message("Build complete.")
+          RSCRIPT
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "_site"
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
     permissions:
-      repository-projects: read
       pages: write
       id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
