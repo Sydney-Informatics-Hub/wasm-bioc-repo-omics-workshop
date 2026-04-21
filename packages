@@ -1,0 +1,13 @@
+edgeR
+limma
+DESeq2
+Biobase
+BiocGenerics
+S4Vectors
+IRanges
+GenomicRanges
+GenomeInfoDb
+SummarizedExperiment
+DelayedArray
+MatrixGenerics
+BiocParallel

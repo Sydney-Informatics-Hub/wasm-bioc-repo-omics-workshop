@@ -1,0 +1,25 @@
+# Workflow derived from https://github.com/r-wasm/actions/tree/v2/examples
+# Builds WebAssembly binaries for Bioconductor packages needed for
+# the Foundations of Omics workshop practicals (edgeR, limma, DESeq2)
+# and deploys them as a CRAN-like repository on GitHub Pages.
+#
+# Once deployed, install packages in webR with:
+#   webr::install("edgeR", repos = c(
+#     "https://YOUR-USERNAME.github.io/wasm-bioc-repo/",
+#     "https://repo.r-wasm.org/"
+#   ))
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:   # allows manual trigger from GitHub Actions tab
+
+name: Build and deploy wasm R package repository
+
+jobs:
+  deploy-cran-repo:
+    uses: r-wasm/actions/.github/workflows/deploy-cran-repo.yml@v2
+    permissions:
+      repository-projects: read
+      pages: write
+      id-token: write
