@@ -18,95 +18,85 @@ jobs:
       - name: Pull webR Docker image
         run: docker pull ghcr.io/r-wasm/webr:main
 
-      - name: Build wasm R packages
+      - name: Write R build script
         run: |
-          # Create output dir with open permissions so Docker can write to it
-          mkdir -p ${{ github.workspace }}/_site
-          chmod 777 ${{ github.workspace }}/_site
-
-          # Write the R build script to a file (avoids heredoc quoting issues)
           cat > /tmp/build.R << 'REOF'
-          message("=== Installing pak ===")
+          message("=== Installing pak + rwasm ===")
           install.packages("pak", repos = "https://r-lib.github.io/p/pak/stable/")
-
-          message("=== Installing rwasm ===")
           pak::pak("r-wasm/rwasm")
-
-          message("=== Installing BiocManager ===")
-          install.packages("BiocManager", repos = "https://cloud.r-project.org")
-
-          message("=== Setting repos ===")
           library(rwasm)
-          options(repos = c(
-            BiocManager::repositories(),
-            CRAN = "https://cloud.r-project.org"
-          ))
-          message("Repos set to: ", paste(getOption("repos"), collapse=", "))
 
-          # Build in strict dependency order, one at a time
+          # Do NOT set options(repos) — pkgdepends handles bioc:: natively
+          # when repos is unset. Setting it breaks the bioc:: resolver.
+          message("Default repos: ", paste(getOption("repos"), collapse=", "))
+
+          # Use bioc:: prefix so pkgdepends knows where to look
           pkgs <- c(
-            "BiocGenerics",
-            "Biobase",
-            "S4Vectors",
-            "IRanges",
-            "GenomeInfoDb",
-            "GenomicRanges",
-            "MatrixGenerics",
-            "DelayedArray",
-            "SummarizedExperiment",
-            "BiocParallel",
-            "limma",
-            "edgeR",
-            "DESeq2"
+            "bioc::BiocGenerics",
+            "bioc::Biobase",
+            "bioc::S4Vectors",
+            "bioc::IRanges",
+            "bioc::GenomeInfoDb",
+            "bioc::GenomicRanges",
+            "bioc::MatrixGenerics",
+            "bioc::DelayedArray",
+            "bioc::SummarizedExperiment",
+            "bioc::BiocParallel",
+            "bioc::limma",
+            "bioc::edgeR",
+            "bioc::DESeq2"
           )
 
           for (pkg in pkgs) {
-            message("\n========== Building: ", pkg, " ==========")
+            message("\n=== Building: ", pkg, " ===")
             tryCatch(
-              rwasm::add_pkg(pkg, repo_dir = "/output", dependencies = FALSE),
-              error = function(e) message("FAILED: ", pkg, " — ", conditionMessage(e))
+              rwasm::add_pkg(pkg, repo_dir="/output", dependencies=FALSE),
+              error = function(e) message("FAILED: ", pkg, " - ", conditionMessage(e))
             )
           }
 
-          # Report what was built
-          message("\n=== Built packages ===")
-          pkgs_dir <- list.files("/output", recursive = TRUE, pattern = "\\.tgz$")
-          message(paste(pkgs_dir, collapse = "\n"))
+          message("\n=== Done. Files in /output: ===")
+          cat(paste(list.files("/output", recursive=TRUE), collapse="\n"), "\n")
           REOF
+          echo "Script written OK"
 
-          # Run the script inside the webR container
+      - name: Create output directory
+        run: |
+          mkdir -p /tmp/wasm-output
+          chmod 777 /tmp/wasm-output
+
+      - name: Run Docker build
+        run: |
           docker run --rm \
-            -v "${{ github.workspace }}/_site:/output" \
-            -v "/tmp/build.R:/build.R" \
+            --volume /tmp/build.R:/build.R:ro \
+            --volume /tmp/wasm-output:/output \
             ghcr.io/r-wasm/webr:main \
             Rscript /build.R
 
       - name: Check output
         run: |
-          echo "Contents of _site:"
-          find ${{ github.workspace }}/_site -type f | head -50
-          echo "---"
-          echo "Total files: $(find ${{ github.workspace }}/_site -type f | wc -l)"
+          echo "=== Files built ==="
+          find /tmp/wasm-output -type f
+          echo "=== Total: $(find /tmp/wasm-output -type f | wc -l) files ==="
 
-      - name: Create index.html (required by GitHub Pages)
+      - name: Copy output to _site
         run: |
-          cat > ${{ github.workspace }}/_site/index.html << 'HTML'
-          <!DOCTYPE html>
-          <html>
-          <head><title>Omics Workshop wasm R package repo</title></head>
+          mkdir -p _site
+          cp -r /tmp/wasm-output/. _site/
+          echo "Total in _site: $(find _site -type f | wc -l)"
+
+      - name: Create index.html
+        run: |
+          cat > _site/index.html << 'HTML'
+          <!DOCTYPE html><html><head><title>Omics Workshop wasm repo</title></head>
           <body>
           <h2>Omics Workshop — WebAssembly R Package Repository</h2>
-          <p>This is a binary R package repository for use with
-          <a href="https://docs.r-wasm.org/webr/latest/">webR</a>.</p>
-          <p>Install packages with:</p>
-          <pre>
-          webr::install("edgeR", repos = c(
+          <p>Install with:</p>
+          <pre>webr::install("edgeR", repos = c(
             "https://sydney-informatics-hub.github.io/wasm-bioc-repo-omics-workshop/",
             "https://repo.r-wasm.org/"
-          ))
-          </pre>
-          </body>
-          </html>
+          ))</pre>
+          </body></html>
           HTML
 
       - name: Upload Pages artifact
